@@ -242,7 +242,7 @@ class TextRenderer
 
             // Render from a placeholder that was provided.
             } else {
-                $replace_value = $this->getPlaceholderValue($source, $attribute_name, $settings, $empty_text);
+                $replace_value = $this->getPlaceholderValue($source, $attribute_name, $settings, $options, $empty_text);
             }
 
             $replace_value = $this->parseValueOptions($replace_value, $options, $empty_text);
@@ -279,7 +279,7 @@ class TextRenderer
      *
      * @return string
      */
-    public function getPlaceholderValue($source, $name, $settings = [], $empty_text = '')
+    public function getPlaceholderValue($source, $name, $settings = [], $options = [], $empty_text = '')
     {
         // The placeholder has not been assigned.
         if (!Arr::has($this->placeholders, $source, false)
@@ -292,7 +292,11 @@ class TextRenderer
         }
 
         if (method_exists($placeholder, Str::camel($name))) {
-            return $placeholder->{Str::camel($name)}($settings);
+            try {
+                return $placeholder->{Str::camel($name)}($settings, $options, $empty_text);
+            } catch (\Exception $exception) {
+                return $exception->getMessage();
+            }
         }
 
         return data_get($placeholder, $name, $empty_text);
