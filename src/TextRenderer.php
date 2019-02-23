@@ -264,7 +264,7 @@ class TextRenderer
      *
      * @return boolean
      */
-    private function isPluginPlaceholder($source)
+    public function isPluginPlaceholder($source)
     {
         return Arr::has($this->plugins, $source);
     }
@@ -279,7 +279,7 @@ class TextRenderer
      *
      * @return string
      */
-    private function getPlaceholderValue($source, $name, $settings, $empty_text)
+    public function getPlaceholderValue($source, $name, $settings = [], $empty_text = '')
     {
         // The placeholder has not been assigned.
         if (!Arr::has($this->placeholders, $source, false)
@@ -288,14 +288,14 @@ class TextRenderer
         }
 
         if (is_array($placeholder)) {
-            return Arr::get($placeholder, $name, '');
+            return Arr::get($placeholder, $name, $empty_text);
         }
 
         if (method_exists($placeholder, Str::camel($name))) {
             return $placeholder->{Str::camel($name)}($settings);
         }
 
-        return data_get($placeholder, $name, '');
+        return data_get($placeholder, $name, $empty_text);
     }
 
     /**
@@ -306,7 +306,7 @@ class TextRenderer
      *
      * @return string
      */
-    private function parseValueOptions($value, $options, $empty_text)
+    public function parseValueOptions($value, $options, $empty_text)
     {
         if (empty($value) && !empty($empty_text)) {
             return $empty_text;

@@ -61,4 +61,18 @@ abstract class RendererPluginAbstract implements RendererPluginInterface
     {
         return $this->renderer->getPlaceholder($key);
     }
+
+    /**
+     * Get placeholder value.
+     *
+     * @param string $source
+     * @param string $name
+     * @param array  $settings
+     *
+     * @return string
+     */
+    public function getPlaceholderValue($source, $name, $settings = [])
+    {
+        return $this->renderer->getPlaceholderValue($source, $name, $settings, false);
+    }
 }
