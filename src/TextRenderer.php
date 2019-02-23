@@ -62,10 +62,10 @@ class TextRenderer
     }
 
     /**
-     * Set config
+     * Set config.
      *
      * @param string $key
-     * @param mixed  $data
+     * @param mixed  $value
      *
      * @return self
      */
@@ -74,6 +74,31 @@ class TextRenderer
         Arr::set($this->config, $key, $value);
 
         return $this;
+    }
+
+    /**
+     * Get config.
+     *
+     * @param string $key
+     * @param mixed  $default
+     *
+     * @return self
+     */
+    public function getConfig($key, $default = null)
+    {
+        return Arr::get($this->config, $key, $default);
+    }
+
+    /**
+     * Has config.
+     *
+     * @param string $key
+     *
+     * @return self
+     */
+    public function hasConfig($key)
+    {
+        return Arr::has($this->config, $key);
     }
 
     /**
@@ -150,6 +175,16 @@ class TextRenderer
     }
 
     /**
+     * Get placeholder.
+     *
+     * @return bool|array
+     */
+    public function getPlaceholder($key, $default = null)
+    {
+        return Arr::get($this->placeholders, $key, $default);
+    }
+
+    /**
      * Parse the text using the placeholders.
      *
      * @return self
@@ -203,7 +238,7 @@ class TextRenderer
 
             // Render using plugin.
             } elseif ($this->isPluginPlaceholder($source)) {
-                $replace_value = $this->plugins[$source]->parse($source, $original_attribute, $settings, $empty_text);
+                $replace_value = $this->plugins[$source]->parse($original_attribute, $settings, $options, $empty_text);
 
             // Render from a placeholder that was provided.
             } else {

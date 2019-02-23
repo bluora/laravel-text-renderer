@@ -3,6 +3,7 @@
 namespace HnhDigital\TextRenderer\Plugins;
 
 use HnhDigital\TextRenderer\RendererPluginAbstract;
+use Illuminate\Support\Arr;
 
 /**
  * This is the Signature plugin for the text renderer.
@@ -23,38 +24,36 @@ class RoutePlugin extends RendererPluginAbstract
      */
     public function parse($name, $settings, $options, $empty_text)
     {
-        $key_array = explode('|', $key);
-
-        if (array_get($key_array, 0, false)) {
-            // Default.
-            $args = [];
-
-            if (Arr::has($this->config, 'route.parameters')) {
-                $args = Arr::get($this->config, 'route.parameters');
-            }
-
-            foreach ($settings as $source_name) {
-                $source = Arr::get($this->placeholders, $source_name, null);
-
-                if ($source instanceof \Illuminate\Database\Eloquent\Model) {
-                    $args[$source_name] = $source->getKey();
-                } elseif (is_string($source) && !empty($source)) {
-                    $args[$source_name] = $source;
-                } elseif (stripos($source_name, '=')) {
-                    $source_name_array = explode('=', $source_name);
-                    $args[$source_name_array[0]] = $source_name_array[1];
-                }
-            }
-
-            try {
-                $url = route($key, $args);
-
-                return '<a href="'.$url.'" target="_blank">'.(empty($empty_text) ? 'here' : $empty_text).'</a>';
-            } catch (\Exception $e) {
-                return $e->getMessage();
-            }            
+        if (empty($name)) {
+            return '[error - incorrect route]';
         }
 
-        return '[error - incorrect route]';
+        // Default.
+        $args = [];
+
+        if ($this->hasConfig('route.parameters')) {
+            $args = $this->getConfig('route.parameters');
+        }
+
+        foreach ($settings as $source_name) {
+            $source = $this->getPlaceholder($source_name);
+
+            if ($source instanceof \Illuminate\Database\Eloquent\Model) {
+                $args[$source_name] = $source->getKey();
+            } elseif (is_string($source) && !empty($source)) {
+                $args[$source_name] = $source;
+            } elseif (stripos($source_name, '=')) {
+                $source_name_array = explode('=', $source_name);
+                $args[$source_name_array[0]] = $source_name_array[1];
+            }
+        }
+
+        try {
+            $url = route($name, $args);
+
+            return '<a href="'.$url.'" target="_blank">'.(empty($empty_text) ? 'here' : $empty_text).'</a>';
+        } catch (\Exception $e) {
+            return $e->getMessage();
+        }
     }
 }

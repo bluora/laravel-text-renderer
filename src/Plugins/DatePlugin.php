@@ -3,6 +3,7 @@
 namespace HnhDigital\TextRenderer\Plugins;
 
 use HnhDigital\TextRenderer\RendererPluginAbstract;
+use Illuminate\Support\Arr;
 
 /**
  * This is the Signature plugin for the text renderer.
