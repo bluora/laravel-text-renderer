@@ -12,15 +12,23 @@ namespace HnhDigital\TextRenderer;
  */
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
+use HnhDigital\TextRenderer\RendererPluginInterface;
 
 /**
  * This is the Text Renderer class.
  *
  * @author Rocco Howard <rocco@hnh.digital>
  */
-
 class TextRenderer
 {
+    /**
+     * Config.
+     *
+     * @var array
+     */
+    protected $config = [];
+
     /**
      * Placeholders.
      *
@@ -29,7 +37,89 @@ class TextRenderer
     protected $placeholders = [];
 
     /**
-     * Rregister placeholder source.
+     * Plugins.
+     *
+     * @var array
+     */
+    protected $plugins = [];
+
+    /**
+     * Constructor.
+     *
+     * @return self
+     */
+    public function __construct()
+    {
+        foreach (config('hnhdigital.text-renderer.internal-plugins', []) as $name => $class) {
+            $this->addPlugin($name, $class);
+        }
+
+        foreach (config('hnhdigital.text-renderer.plugins', []) as $name => $class) {
+            $this->addPlugin($name, $class);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set config
+     *
+     * @param string $key
+     * @param mixed  $data
+     *
+     * @return self
+     */
+    public function setConfig($key, $value)
+    {
+        Arr::set($this->config, $key, $value);
+
+        return $this;
+    }
+
+    /**
+     * Set default placeholder.
+     *
+     * @param mixed  $data
+     * @param string $other_key
+     *
+     * @return self
+     */
+    public function setDefaultPlaceholder($data, $other_key = null)
+    {
+        if (!is_null($other_key)) {
+            $this->addPlaceholder($other_key, $data);
+        }
+
+        return $this->addPlaceholder('default', $data);
+    }
+
+    /**
+     * Add placeholder.
+     *
+     * @param string $name
+     * @param mxied $class
+     *
+     * @return self
+     */
+    public function addPlugin($name, $class)
+    {
+        if (is_string($plugin = $class)) {
+            $plugin = new $class;
+        }
+
+        if (!($plugin instanceof RendererPluginInterface)) {
+            return $this;
+        }
+
+        $plugin->connect($this);
+
+        Arr::set($this->plugins, $name, $plugin);
+
+        return $this;
+    }
+
+    /**
+     * Add placeholder.
      *
      * @param string $key
      * @param mixed  $data
@@ -45,6 +135,8 @@ class TextRenderer
 
     /**
      * Add placeholders.
+     *
+     * @param array $placeholders
      *
      * @return self
      */
@@ -70,12 +162,12 @@ class TextRenderer
         preg_match_all('/\@([0-9a-zA-Z_-]+)(?:(?:\()(.*?)(?:\)))?(?:(?:{)(.*?)(?:}))?(?:(?:\[)(.*?)(?:\]))?/', $text, $matches);
 
         foreach ($matches[1] as $index => $match) {
-            $empty_text = Arr::get($matches, Arr::dot(3, $index));
-            $options = explode(',', Arr::get($matches, Arr::dot(4, $index), ''));
+            $empty_text = Arr::get($matches, '3.'.$index, '');
+            $options = explode(',', Arr::get($matches, '4.'.$index, ''));
 
             if (empty($matches[2][$index])) {
                 $placeholders[$matches[0][$index]] = [
-                    'name'    => str_replace('-', '_', $matches[1][$index]),
+                    'source'  => str_replace('-', '_', $matches[1][$index]),
                     'options' => $options,
                     'empty'   => $empty_text,
                 ];
@@ -83,51 +175,46 @@ class TextRenderer
                 continue;
             }
 
+            $attribute_array = explode('|', $matches[2][$index]);
+            $attribute_name = array_shift($attribute_array);
+
             $placeholders[$matches[0][$index]] = [
-                'name'      => $matches[1][$index],
-                'attribute' => str_replace('-', '_', $matches[2][$index]),
-                'options'   => $options,
-                'empty'     => $empty_text,
+                'source'             => $matches[1][$index],
+                'attribute'          => str_replace('-', '_', $attribute_name),
+                'original_attribute' => $attribute_name,
+                'settings'           => $attribute_array,
+                'options'            => $options,
+                'empty'              => $empty_text,
             ];
         }
 
-        foreach ($placeholders as $original_placeholder => $settings) {
-            $name = Arr::get($settings, 'name');
-            $attribute_name = Arr::get($settings, 'attribute', false);
-            $options = Arr::get($settings, 'options', false);
-            $empty_text = Arr::get($settings, 'empty', '');
+        foreach ($placeholders as $original_value => $placeholder_data) {
+            $source = Arr::get($placeholder_data, 'source');
+            $attribute_name = Arr::get($placeholder_data, 'attribute', false);
+            $original_attribute = Arr::get($placeholder_data, 'original_attribute', false);
+            $settings = Arr::get($placeholder_data, 'settings', []);
+            $options = Arr::get($placeholder_data, 'options', []);
+            $empty_text = Arr::get($placeholder_data, 'empty', '');
 
-            // Render user placeholders - @attribute-name[?]
-            // @todo render non-user placeholder data assigned to message.
-            if ($attribute_name === false) {1
-                $text = str_replace(
-                    $original_placeholder,
-                    $this->renderOptions($this->to_user->{$name}, $options, $empty_text),
-                    $text
-                );
+            // Render default placeholders - @attribute-name[?]
+            if ($attribute_name === false
+                && Arr::has($this->placeholders, 'default')) {
+                $replace_value = $this->getPlaceholderValue('default', $source, $settings, $empty_text);
 
-                continue;
-            }
+            // Render using plugin.
+            } elseif ($this->isPluginPlaceholder($source)) {
+                $replace_value = $this->plugins[$source]->parse($source, $original_attribute, $settings, $empty_text);
 
-            // The placeholder has not been assigned.
-            if (!array_has($this->placeholders, $name, false)
-                || is_null($placeholder = Arr::get($this->placeholders, $name, false))) {
-                $text = str_replace($original_placeholder, $empty_text, $text);
-
-                continue;
-            }
-
-            if (is_array($placeholder)) {
-                $replace_placeholder = Arr::get($placeholder, $attribute_name, '');
+            // Render from a placeholder that was provided.
             } else {
-                $replace_placeholder = data_get($placeholder, $attribute_name, '');
+                $replace_value = $this->getPlaceholderValue($source, $attribute_name, $settings, $empty_text);
             }
 
-            $replace_placeholder = $this->renderOptions($replace_placeholder, $options, $empty_text);
+            $replace_value = $this->parseValueOptions($replace_value, $options, $empty_text);
 
             $text = str_replace(
-                $original_placeholder,
-                $replace_placeholder,
+                $original_value,
+                $replace_value,
                 $text
             );
         }
@@ -136,14 +223,55 @@ class TextRenderer
     }
 
     /**
-     * Apply options to this placeholder.
+     * Check if the source placeholder is a plugin.
+     *
+     * @param string $source
+     *
+     * @return boolean
+     */
+    private function isPluginPlaceholder($source)
+    {
+        return Arr::has($this->plugins, $source);
+    }
+
+    /**
+     * Check the source placeholder for the given attribute.
+     *
+     * @param string $source
+     * @param string $name
+     * @param array  $settings
+     * @param string $empty_text
+     *
+     * @return string
+     */
+    private function getPlaceholderValue($source, $name, $settings, $empty_text)
+    {
+        // The placeholder has not been assigned.
+        if (!Arr::has($this->placeholders, $source, false)
+            || is_null($placeholder = Arr::get($this->placeholders, $source, false))) {
+            return $empty_text;
+        }
+
+        if (is_array($placeholder)) {
+            return Arr::get($placeholder, $name, '');
+        }
+
+        if (method_exists($placeholder, Str::camel($name))) {
+            return $placeholder->{Str::camel($name)}($settings);
+        }
+
+        return data_get($placeholder, $name, '');
+    }
+
+    /**
+     * Parse the given text with some options.
      *
      * @param string $value
      * @param array  $options
      *
      * @return string
      */
-    private function renderOptions($value, $options, $empty_text)
+    private function parseValueOptions($value, $options, $empty_text)
     {
         if (empty($value) && !empty($empty_text)) {
             return $empty_text;
@@ -168,7 +296,6 @@ class TextRenderer
                     break;
             }
         }
-
 
         return $value;
     }

@@ -28,6 +28,13 @@
       "HnhDigital\\TextRenderer\\Tests\\": "tests/"
     }
   },
+  "extra": {
+    "laravel": {
+      "providers": [
+          "HnhDigital\\TextRenderer\\ServiceProvider"
+      ]
+    }
+  },
   "scripts": {
     "test": [
       "composer phpunit && composer phpcs && composer phpmd"
